@@ -15,6 +15,7 @@ use Doctrine\ODM\MongoDB\DocumentManager;
 use Doctrine\ODM\MongoDB\UnitOfWork as MongoDBUnitOfWork;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Event\LifecycleEventArgs;
+use Doctrine\Persistence\Event\LifecycleEventArgs as PersistenceLifecycleEventArgs;
 use Doctrine\Persistence\Event\LoadClassMetadataEventArgs;
 use Doctrine\Persistence\Event\ManagerEventArgs;
 use Doctrine\Persistence\Mapping\ClassMetadata;
@@ -76,9 +77,27 @@ class SoftDeleteableListener extends MappedEventSubscriber
     {
         return [
             'loadClassMetadata',
+            'preRemove',
             'onFlush',
             'postFlush',
         ];
+    }
+
+    /**
+     * If it's a SoftDeleteable object
+     * make sure the object is initialized
+     */
+    public function preRemove(PersistenceLifecycleEventArgs $args): void
+    {
+        $object = $args->getObject();
+        $om = $args->getObjectManager();
+        $meta = $om->getClassMetadata(get_class($object));
+        $config = $this->getConfiguration($om, $meta->getName());
+
+        if (isset($config['softDeleteable']) && $config['softDeleteable']) {
+            // Ensure object is initialized to avoid Document is removed error
+            $om->initializeObject($object);
+        }
     }
 
     /**
